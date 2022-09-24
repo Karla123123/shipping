@@ -1,0 +1,144 @@
+var lucky = lucky || {};
+if (!lucky.modules)
+    lucky: { modules: { } }
+
+(function ($, ns) {
+
+    $.extend(true, ns, {
+        afterPayModule:
+        {       
+            init: function (version) {
+                var  _enabled = $('body').data('ap-on'),
+                    _options = {
+                    "version" : "" + (!_enabled ? 0 : version)
+                }, _loadJs = function(url, callback) {
+                    var cc = document.createElement("script"),
+                        s = document.getElementsByTagName("script")[0],
+                        url = url;
+
+                    cc.type = "text/javascript";
+                    cc.async = true;
+                    cc.src = url;
+                    s.parentNode.insertBefore(cc, s);
+
+                    cc.addEventListener("load", function() {
+                        _jsLoaded = true;
+                        if(typeof(callback) == 'function')
+                            callback();
+
+                    })  
+                },
+                _jsLoaded = false,
+                _observers = {},
+                _setMutationObserver = function(index, parent, targetClassName, config) {
+                    _observers[index] = new MutationObserver(function (mutations) {
+                        for (let mutation of mutations) {
+                            if (mutation.type === 'childList') {
+                                if(mutation.addedNodes.length > 0) {
+                                    for(let elem of mutation.addedNodes) {
+                                        if($(elem).hasClass(targetClassName)) {
+                                            $(elem).attr('data-ap-theme', config.theme)
+                                            .attr('data-ap-version', _options.version);
+                                            _observers[index].disconnect();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    _observers[index].observe(parent, { childList : true });
+
+
+                },
+                _widgets = 
+                {
+                    "0" : {
+                        init: function() {
+                            return {
+                                renderWidget : function() {
+                                    //debug.log('ap not enabled');
+                                }
+                            }
+                        }
+                    },
+                    "1": {
+                        init: function() {
+                            var _url = "https://static-us.afterpay.com/javascript/present-afterpay.js";
+                            
+                            return {
+                                renderWidget : function(selectors, config, callback) {
+                                    var render = function(selectors, config, callback) {
+                                        $(selectors).each(function(i,o) {
+                                            _setMutationObserver(i, $(o).parent()[0], 'afterpay-paragraph', config);
+                                            
+                                            new presentAfterpay({
+                                                priceSelector: o,
+                                                locale: config.locale,
+                                                currency: config.currency,
+                                                afterpayLogoColor: config.theme
+                                            }).init();
+                                        });
+                                        
+                                        if(typeof(callback) == 'function')
+                                            callback();
+                                    }
+
+                                    if(!_jsLoaded)
+                                        _loadJs(_url, function() {
+                                            render(selectors, config, callback);
+                                        });
+                                    else
+                                        render(selectors, config, callback);
+
+                                }
+                            }
+                            
+                        }
+                    },
+                    "2": {
+                        init: function() {
+                            var _url = "https://js.afterpay.com/afterpay-1.x.js";
+                            _loadJs(_url)
+                            return {
+                                renderWidget : function(selectors, config, callback) {
+                                    var render = function(selectors, config, callback) {
+                                        //themes: mint-on-black, white-on-black, black-on-mint
+                                        $(selectors).each(function(i,o) {
+                                            var $widget = $('<afterpay-placement></afterpay-placement>')
+                                                                .attr('data-locale', config.locale)
+                                                                .attr('data-currency', config.currency)
+                                                                .attr('data-selector', o)
+                                                                .attr('data-amount', config.amount)
+                                                                .attr('data-show-lower-limit', config.showLowerLimit)
+                                                                .attr('data-show-upper-limit', config.showUpperLimit)
+                                                                .attr('data-is-eligible', config.isEligible)
+                                                                .attr('data-badge-theme', config.theme);
+                                            $(o).after($widget);
+                                            
+                                        });
+                                        
+                                        if(typeof(callback) == 'function')
+                                            callback();
+                                    }
+
+                                    if(!_jsLoaded)
+                                        _loadJs(_url, function() {
+                                            render(selectors, config, callback);
+                                        });
+                                    else
+                                        render(selectors, config, callback);
+                                    
+
+                                }
+                            }
+                            
+                        }
+                    }
+                }
+                return _widgets[_options.version].init();
+            }
+        }    
+    
+    });
+})(jQuery, lucky.modules);

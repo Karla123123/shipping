@@ -1,0 +1,190 @@
+﻿var lucky = lucky || {};
+
+(function ($, ns) {
+    $.extend(true, ns, {
+        checkout:
+        {
+            name: "checkout",           
+            init: function (options, callback) {
+                var _options= {
+                    page: "checkout",
+                    checkoutForm: "#checkout-form",
+                    summaryContainer: "div[data-type='checkout-summary']",
+                    paymentInfoContainer: "div.panel[data-type='payment-info']",
+                    shippingInfoContainer: "div.panel[data-type='shipping-method']",
+                    mergeCartLink: ""
+                },
+                actionItemLinkHandler = function(elem) {
+                     var    field = elem.data('field'),
+                            params = {
+                                "action" : elem.data('action'),
+                                "entity" : elem.data('entity'),
+                                "field" : field
+                            };
+                            
+                    params[field] =  $(_options.summaryContainer).find('input[name="' + field + '"]').map(function() { 
+                        return $(this).val(); 
+                    }).get().join(); 
+                    
+                    var shipCountry = $(_options.checkoutForm).find("#ship_country").val();                    
+                    if(shipCountry != '')
+                        params["ship_country"] = shipCountry;
+                        
+                    var shipState = $(_options.checkoutForm).find("#ship_state").val();                    
+                    if(shipCountry != '')
+                        params["ship_state"] = shipState;
+                        
+                    var shipZip = $(_options.checkoutForm).find("#ship_zip_code").val();                    
+                    if(shipCountry != '')
+                        params["ship_zip_code"] = shipZip;
+                    
+                    return params;
+                },
+                trackActionItem = function(params) {
+                    var entities = ["promo"];
+
+                    if(entities.indexOf(params.entity) < 0 || typeof(tracker) != 'object')
+                        return;
+
+                    tracker.event(params.entity, params.action, (params[params.field] + "").toUpperCase());
+
+                },
+                summaryContainerHandler = function(params, summaryCallback) {
+                    var url = 'update_order.asp?ajax=true';
+                     $(_options.summaryContainer).addClass('loading');
+                     $(_options.shippingInfoContainer).addClass('loading');
+
+                     $.post(url, params, function(data) {            
+                            var $html = $(data);
+                            $(_options.summaryContainer).html($html.find(_options.summaryContainer).html())
+                            $(_options.summaryContainer).data($html.find(_options.summaryContainer).data());
+                                        
+                            $(_options.shippingInfoContainer).html($html.find(_options.shippingInfoContainer).html())
+                            $(_options.shippingInfoContainer).data($html.find(_options.shippingInfoContainer).data());
+                                        
+                            $(_options.summaryContainer).removeClass('loading');
+                            $(_options.shippingInfoContainer).removeClass('loading');
+
+                            
+                            $.publish('updated.lucky.checkout.summaryContainer', [true]);
+
+                            trackActionItem(params);
+                            
+                            if (typeof (summaryCallback) != 'undefined')
+                                summaryCallback();
+                    }); 
+                                                    
+                            
+                    return false;
+                },
+                togglePaymentForShippingMethod = function() {
+                    if(_options.page != 'billing')
+                        return false;
+                        
+                    var oInfo = $(_options.summaryContainer).data(),
+                            //$shippingMethod = $('#shipping_method').find(':selected').data(),
+                            showPayment = typeof(oInfo) == "undefined" || oInfo.unused < oInfo.amounttocharge;
+        
+                    if(showPayment) {                  
+                        $('input[name="paymentType"]').each(function(i,o) {                    
+                            $(o).prop('checked', $(o).data('type') == $(_options.paymentInfoContainer).data('paymenttype'));
+                        });
+
+                        if(oInfo.paymenttype == 'giftcard')
+                            oInfo.paymenttype = 'creditcard';
+                    }
+        
+                    $(_options.paymentInfoContainer).toggle(showPayment);
+                    
+                    $('#updateCC').prop('checked', oInfo.updatecc);
+                    $('#bSaveCreditCard').prop('checked', oInfo.savecc);
+                    $('#confirmcvv2-container').toggle($('#bSaveCreditCard').prop('checked'));
+
+                    if(oInfo.paymenttype != 'giftcard')
+                        $('input[name="paymentType"][data-type="' + oInfo.paymenttype + '"]').prop('checked', true).change();
+        
+                    $(_options.checkoutForm).data('bootstrapValidator').resetForm(false);  
+                    
+                }
+                
+                $.extend(_options, options);
+
+                if (typeof (callback) != 'undefined')
+                    callback(_options);
+
+                if(_options.page != 'receipt' && _options.mergeCartLink != '') {
+                    var mergeCartLink = $('<a></a>').addClass('lnkMergeCart').text('Get Merge Cart Link').attr('target', '_blank').attr('href',_options.mergeCartLink);
+                    $(mergeCartLink).on('click', function(e) {
+                        prompt('Merge Cart Link', $(this).attr('href'));
+                        return false;
+                    });
+
+                    $(mergeCartLink).prependTo($('#main-col'));
+                }
+                    
+                // Bind summary container handlers
+                $('body').on('click', _options.summaryContainer + ' a.action-item',  function(e) {
+                    e.stopPropagation();
+                    
+                    if($(this).data('action') == 'apply' && $(_options.summaryContainer).find('input[name="' + $(this).data('field') + '"][type="text"]').val() == '') {
+                        alert('Please enter a value');
+                        return false;
+                    }
+                    var  self = $(this),
+                         params = actionItemLinkHandler(self);
+                    
+                    return summaryContainerHandler(params, togglePaymentForShippingMethod);            
+                           
+                });
+                
+                $('body').on('click', _options.summaryContainer + ' a.remove-item',  function(e) {
+                    e.stopPropagation();
+                    
+                    var trigger = $('a.action-item[data-entity="' + $(this).data('entity') + '"][data-action="apply"]')
+                            
+                    //$('table > tbody > tr[data-entity="' + $(this).data('entity') + '"][data-value="' + $(this).data('value') + '"]').remove();
+                    
+                    $(this).closest('tr').remove();
+                    
+                    var params = actionItemLinkHandler(trigger);
+                    
+                    return summaryContainerHandler(params, togglePaymentForShippingMethod);              
+                           
+                });
+                
+                $('body').on('change', '#shipping_method',  function(e) {
+                    e.stopPropagation();
+                    var  self = $(this),                                     
+                            field = self.data('field'),
+                            params = {
+                                "action" : self.data('action'),
+                                "entity" : self.data('entity'),
+                                "field" : field
+                                
+                            };
+                            
+                    params[field] = $(self).val();
+                    
+                    return summaryContainerHandler(params, togglePaymentForShippingMethod);             
+                           
+                });
+                
+                $(_options.summaryContainer).find('.summary.collapse')
+                .on('shown.bs.collapse', function (e) {
+                    $(e.target).closest('.summary-container').find('h2 a[data-toggle="collapse"] > .glyphicon').removeClass('glyphicon-chevron-right').addClass('glyphicon-chevron-down');
+                })
+                .on('hidden.bs.collapse', function (e) {
+                    $(e.target).closest('.summary-container').find('h2 a[data-toggle="collapse"] > .glyphicon').removeClass('glyphicon-chevron-down').addClass('glyphicon-chevron-right');
+                });
+                
+                if(_options.page == 'billing' && $(_options.summaryContainer).data('has-giftcerts'))
+                    togglePaymentForShippingMethod();
+
+                          
+                
+
+            } // end init
+        }
+    });
+
+})(jQuery, lucky.pages);

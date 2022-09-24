@@ -1,0 +1,204 @@
+var CookieConsentManager = (function ($, dataLayer) {
+    var _options = {
+            "position": "bottom",
+            "country": "US",
+            "region": "",
+            "type": "info",
+            "regionalLaw": true,
+            "law": {},
+            "rules": {},
+            "enabled": false,
+            "tracker": {}
+        },
+        _cssLoaded = false,
+        _jsLoaded = false, 
+        _rulesLoaded = false,      
+        _positions = {
+            "bottom": "bottom",
+            "top": "top",
+            "top-push": "top-push",
+            "bottom-left": "bottom-left",
+            "bottom-right": "bottom-right"
+       
+        },
+        _utils = {},
+        _complianceTypes = {
+            "info" : ["dismiss"],
+            "opt-in" : ["dismiss", "allow"],
+            "opt-out" : ["deny", "dismiss"]
+        },
+        _currentStatus = function() {
+                return $('body').attr('data-ccstatus') != undefined ? $('body').attr('data-ccstatus') : "";              
+        },
+        _currentCookieStatus = function() {
+                return _utils.getCookie("cookieconsent_status") != undefined ? _utils.getCookie("cookieconsent_status") : "";
+        },
+        _loadCss = function (callback) {
+            var cc = document.createElement("link"),
+                s = document.getElementsByTagName("link")[0];
+
+            cc.type = "text/css";
+            cc.href = "//cdnjs.cloudflare.com/ajax/libs/cookieconsent2/3.0.3/cookieconsent.min.css";
+            cc.rel = "stylesheet";
+            s.parentNode.insertBefore(cc, s);
+
+            cc.addEventListener("load", function() { 
+                _cssLoaded = true;
+
+                if(typeof(callback) == 'function')
+                    callback();
+
+            });
+
+        },
+         _loadJs = function (callback) {
+            var cc = document.createElement("script"),
+                s = document.getElementsByTagName("script")[0];
+
+            cc.type = "text/javascript";
+            cc.async = true;
+            cc.src = "//cdnjs.cloudflare.com/ajax/libs/cookieconsent2/3.0.3/cookieconsent.min.js";
+            s.parentNode.insertBefore(cc, s);
+
+            cc.addEventListener("load", function() {
+                _jsLoaded = true;
+                _utils = window.cookieconsent.utils;
+
+                if(typeof(callback) == 'function')
+                    callback();
+            });
+        },
+        _loadScripts = function(callback) {
+            _loadJs(function() {
+                _loadCss(function() {
+                    _getRules(callback);
+                });
+            });
+        },
+        _getRules = function(callback) {
+            _options["law"] = new cookieconsent.Law({});
+            _options["rules"] = _options["law"].get(_options["country"]);
+            _rulesLoaded = true;
+
+            if(typeof(callback) == 'function')
+                callback();
+        },
+        _updateStatus = function(status) {
+            var updatedStatus = (status == "") ? "" : (status != "deny" ? "yes" : "no"); 
+            
+            if(_utils.getCookie("cookieconsent_status") == undefined)
+                _utils.setCookie("cookieconsent_status", status);
+
+            $('body').attr('data-ccstatus', updatedStatus);
+            dataLayer.push({ "event": "cookieConsentStatusChanged"});
+            _options.tracker.event("CookieConsent", "status", updatedStatus);
+
+            if(updatedStatus == "no")
+                _deleteClientCookies();
+        },  
+        _deleteClientCookies = function() {
+            var cookies = document.cookie.split('; '),
+                aWhitelist = "_ga|_gid|_gat|cookieconsent_status|_lo|__lo|lo_".split('|');
+                for (var c in cookies) {
+                   if(c == '' || cookies[c] == '')
+                     continue;
+
+                   var parts = cookies[c].split('=');
+                   if(aWhitelist.some(function(v) { return parts[0].indexOf(v) == 0; }))
+                     continue;
+
+                   _utils.setCookie(parts[0], '', -1);  
+                }
+        },
+        _initModule = function() {
+            var p,
+                displayRevokeLink = function() { 
+                    if(!p.isOpen())
+                        $('.cc-revoke').show();//document.getElementsByClassName("cc-revoke")[0].style.display = 'block'; 
+                }, 
+                hasStatus = ( _currentStatus() != "" && _currentCookieStatus() != "");
+
+            if(!(_options["rules"].hasLaw || (_options.country == 'US' && _options.region == 'CA'))) {
+                if(!hasStatus) 
+                    _updateStatus("allow");
+                else
+                    dataLayer.push({ "event": "cookieConsentStatusChanged"});
+
+                return;
+            }
+
+            if(!_options.enabled) {
+                if(_utils.getCookie("cookieconsent_status") != undefined)
+                    _utils.setCookie("cookieconsent_status", "", -1);
+
+                return;
+            }
+            
+            window.cookieconsent.initialise({
+                "palette": {
+                    "popup": {
+                        "background": "#eaf7f7",
+                        "text": "#000000"
+                    },
+                    "button": {
+                        "background": "#C9E77C",
+                        "text": "#000000"
+                    }
+                },
+                "type": _options["type"],
+                "content": {
+                    "dismiss": "I Agree",
+                    "deny": "Decline",
+                    "href": "https://www.luckyscent.com/privacy.asp"
+                },
+                elements: {
+                    dismiss: '<a role=button tabindex="0" class="cc-btn cc-dismiss">{{dismiss}}</a>',
+                    allow: '<a role=button tabindex="0"  class="cc-btn cc-allow">{{allow}}</a>',
+                    deny: '<a role=button tabindex="0" class="cc-btn cc-deny">{{deny}}</a>',
+                    link: '<a role=button tabindex="0" class="cc-link" href="{{href}}" target="_blank">{{link}}</a>'
+                },
+                "revokable":true,
+                onInitialise: function(status) {
+                    if(hasStatus)
+                        dataLayer.push({ "event": "cookieConsentStatusChanged"});
+
+                },
+                onPopupOpen: function() {
+                    _deleteClientCookies();
+                    
+                },
+                onRevokeChoice: function() {
+                    _options.tracker.event("CookieConsent", "status", "revoke");
+                },
+                "onStatusChange": function(status) {
+                    _updateStatus(status);
+                },                               
+                "position": _options["position"]                
+            }, function (popup) {
+                  p = popup;
+                  displayRevokeLink()
+            });
+
+            
+        },        
+        _init = function (options, callback) {
+                $.extend(_options, options);   
+                _options.region = $('body').data('region') != undefined ? $('body').data('region') : "";
+                _loadScripts(function() {                    
+
+                    _initModule();
+
+                    if(typeof(callback) == 'function')
+                        callback();
+                });
+
+                
+               
+            };
+
+
+
+        return {
+            init: _init
+        }
+})(jQuery, dataLayer);

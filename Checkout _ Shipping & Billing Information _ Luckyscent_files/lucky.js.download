@@ -1,0 +1,20 @@
+﻿var lucky = lucky ||
+{
+    lib: {},
+    modules: {},
+    pages: {},
+    user: {
+        deviceType : function() {
+            return /iPad/.test(navigator.userAgent) ? "t" : /Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Silk/.test(navigator.userAgent) ? "m" : "d";
+        }
+    }
+};
+
+if (!console)
+    var console = {};
+
+if (!console.log)
+    console.log = function() {};
+        
+if(!console.clear)
+    console.clear = function() {};

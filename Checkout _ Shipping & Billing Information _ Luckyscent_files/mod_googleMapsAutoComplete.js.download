@@ -1,0 +1,153 @@
+var lucky = lucky || {};
+if (!lucky.modules)
+    lucky: { modules: { } }
+
+(function ($, ns) {
+
+    $.extend(true, ns, {
+        googleMapsAutoCompleteModule:
+    {        
+            init: function (apiKey, maps) {
+
+                var _options = {
+                        "types": ['address'],
+                        "fields": ['address_component']            
+                    },
+                    _jsLoaded = false, 
+                    _form, 
+                    _maps = [],
+                    _baseMapsUrl = "https://maps.googleapis.com/maps/api/js",
+                    _autocompletes = [],
+                    _mapsApiLoading = function(callback) {                        
+                        var found = [],
+                            scripts = document.getElementsByTagName("script");
+                        for(var a = 0; a < scripts.length; a++) {                                                    
+                            if(scripts[a].src.indexOf(_baseMapsUrl) >= 0)
+                                found.push(scripts[a]);
+                        }
+
+                        if(!(found.length > 0 && !_mapsApiLoaded()))
+                            return false;
+
+                        found[0].addEventListener("load", callback);
+                        
+                        return true;
+                    },
+                    _mapsApiLoaded = function() {
+                        return (typeof(google) == "object" && typeof(google.maps) == "object" && typeof(google.maps.places) == "object" && typeof(google.maps.places.Autocomplete) == "function");
+                    },
+                    _loadJs = function (callback) {
+                        var cc = document.createElement("script"),
+                            s = document.getElementsByTagName("script")[0];
+
+                        cc.type = "text/javascript";
+                        cc.async = true;
+                        cc.src = "{0}?libraries=places&key={1}".format(_baseMapsUrl, apiKey);
+                        s.parentNode.insertBefore(cc, s);
+
+                        cc.addEventListener("load", function() {
+                            _jsLoaded = true;
+                            
+                            if(typeof(callback) == 'function')
+                                callback();
+                        });
+                    },
+                    _loadScripts = function(callback) {
+                        _loadJs(callback);
+                    },
+                    _getPlaceAddressTypeValue = function(components, name, format) {
+                        var placeValue = "";
+                        for(var i = 0; i < components.length; i++) {
+                            if(placeValue == "" && components[i].types.indexOf(name) >= 0)
+                                placeValue = components[i][format];
+                        }
+                        return placeValue;
+                    },               
+                    _setAddressFields = function() {
+                        var place = this.getPlace(),
+                            map = _maps[this.inputId],
+                            built = [],
+                            form = document.forms[map.form],
+                            setFieldValue = function(fieldName, fieldValue) {
+                                if(form && form.elements[fieldName]) 
+                                    form.elements[fieldName].value = fieldValue;             
+                                else if(document.getElementsByName(fieldName)[0])
+                                    document.getElementsByName(fieldName)[0].value = fieldValue;
+                            };
+
+                            // save selected address to compare later
+                            map["selectedAddress"] = document[map.form][map.searchField].value;
+
+                        // get values from service and map
+                        for(var i = 0; i < map.fields.length;  i++) {
+                            var f = map.fields[i];
+                            if(built[f.name] == undefined)
+                                built[f.name] = [];
+
+                            for(var t = 0; t < f.type.length; t++) {
+                                var c = _getPlaceAddressTypeValue(place.address_components, f.type[t], f.format);
+                                built[f.name].push(c);
+                            }  
+                        }
+
+                        
+                        // set form fields
+                        for(var i = 0; i < map.fields.length;  i++) {
+                            var f = map.fields[i];
+                            
+                            if(!Array.isArray(built[f.name]))
+                                continue;
+                            
+                            for(var t = 0; t < f.field.length; t++) {
+                                setFieldValue(f.field[t], built[f.name].join(" "));
+                            } 
+                        }
+
+                        // run callback
+                        if(typeof(map.onFieldsSet) == "function")
+                            map.onFieldsSet();
+
+
+                    },        
+                    _initModule = function() {
+                        
+                        for(var i = 0; i < _maps.length; i++) {
+                            var searchField = (document.forms[_maps[i].form] && document.forms[_maps[i].form].elements[_maps[i].searchField]) ? 
+                                              document.forms[_maps[i].form].elements[_maps[i].searchField] : 
+                                              document.getElementsByName(_maps[i].searchField)[0];                             
+                            if(!searchField) 
+                                continue;
+
+                            _autocompletes.push(new google.maps.places.Autocomplete(searchField, {types: _options.types}));
+                            
+                            _autocompletes[i].setFields(_options.fields);
+                            _autocompletes[i].inputId = i;
+                            _autocompletes[i].addListener('place_changed', _setAddressFields);
+                            google.maps.event.addDomListener(searchField, 'keydown', function(event) {                                 
+                                if (event.keyCode === 13) { 
+                                    event.preventDefault(); 
+                                }
+                              }); 
+                        }
+                        
+                    }
+
+
+                    if(apiKey == undefined || apiKey == null) {
+                        console.error('Missing api key.');
+                        return;
+                    }
+
+                    
+                    _maps= Array.isArray(maps) ? maps : [];
+
+                    if(_mapsApiLoaded())
+                        _initModule();
+                    else if(!_mapsApiLoading(_initModule))
+                        _loadScripts(_initModule);
+                    
+            }
+        }    
+    
+    });
+})(jQuery, lucky.modules);

@@ -1,0 +1,106 @@
+﻿(function ($) {
+
+    /*
+        Usage:
+        $('#strCountry').fieldSwitcher({
+            eventName: 'change',
+            getSelected: function(elem) {
+                return $(elem).val();
+            }            
+        });
+
+    */
+
+    $.fn.fieldSwitcher = function(options, callback) {
+        var self = this,
+            selectedVal = '',
+            selectedItems = [],
+            settings = $.extend({
+                eventName: 'change',            // name of event handler of parent
+                getSelected: function(elem) {}, // delegate to get the selected value from the parent
+                targetContainer: '',  // container element of the child (usually contains the form label that is hidden until a selection has been made)
+                successElement: '',    // hidden form element that stores the child's selected value (.state)
+                form: $(this).closest('form'),
+                targets: [
+                    {
+                        selector: '.state_ddl',
+                        label: 'state_ddl',
+                        compare: function(val) {
+                            return (val == '0'|| val == '' || val == 'United States' || val == 'Canada');
+                        }
+                    },
+                    {
+                        selector: '.state_input',
+                        label: 'state_input',
+                        compare: function(val) {
+                            return (val != '0' && val != '' && val != 'United States' && val != 'Canada');
+                        }
+                    }
+                ],
+
+                finalize: function () {
+                    if (selectedItems.length > 0) {
+                        if (settings.targetContainer != '')
+                            settings.form.find(settings.targetContainer).show();
+
+                        $.each(selectedItems, function (i, item) {
+                            settings.form.find(settings.targetContainer).find('label').attr('for', item.label);
+
+                            if ((selectedVal == '0' || selectedVal == '') && settings.form.find(item.selector).is('select'))
+                                settings.form.find(item.selector).prop('selectedIndex', 0);
+
+                            if (settings.successElement != '') {
+                                settings.form.find(item.selector).on('keyup keypress blur change', function () {
+                                    if ($(this).val() != null)
+                                        settings.form.find(settings.successElement).val($(this).val());
+                                    //return false;
+                                });
+                            }
+                        });
+
+                    } else
+                        $(settings.targetContainer).hide();
+
+                    if(typeof(callback) == "function")
+                        callback(settings);
+                }
+            }, options),
+            execute = function() {
+                if (typeof (settings.getSelected) == 'undefined' || typeof (settings.targets) == 'undefined') {
+                    alert('Error in jquery-lucky.fieldswitcher plugin.  Please make sure all settings are configured.');
+                    return false;
+                }
+
+                selectedVal = settings.getSelected($(self));
+               
+
+                $.each(settings.targets, function(i, item) {
+                    if (item.compare(selectedVal)) {
+                        selectedItems.push(item);
+                        settings.form.find(item.selector).show();
+                    } else {
+                        settings.form.find(item.selector).hide();
+                    }
+                });
+
+                settings.finalize();
+
+                return false;
+            },
+            init = function()
+            {
+            
+            };
+
+
+        $(this).on(settings.eventName, function() {
+            return execute();
+        });
+
+        execute($(this));
+
+        return this;
+
+    };
+
+}(jQuery));

@@ -1,0 +1,135 @@
+﻿var ListFilter = (function ($) {
+
+    var _options = {
+        delay: 1000,
+        minLength: 2,
+        trigger: '',
+        container: '',
+        items: ''
+    },
+    _currQuery = '', 
+    _displayItems= {
+        "hidden" : [],
+        "visible" : []
+    },   
+    processing = false,
+    filterList  = function (queryVal) {
+        var $items,
+            query = typeof (queryVal) != 'undefined' ? queryVal() : $(_options.trigger).val();
+
+        if (typeof (_options.itemsDelegate) != 'undefined')
+            $items =_options.itemsDelegate();
+        else
+            $items = $(_options.container).find(_options.items);
+
+        query = $.trim(query); //trim white space
+        //query = query.replace(/ /gi, '|'); //add OR for regex query
+        query = query.replace(/ +/g, ' ').toLowerCase();
+
+        
+
+            if (query.length > 0) {
+                var $toHide = $items.filter(function(o) {
+                        var text = $(this).text().replace(/\s+/g, ' ').toLowerCase();
+                        return (text.search(new RegExp(query, "i")) < 0);
+                });
+                var $toShow = $items.filter(function(o) {
+                        var text = $(this).text().replace(/\s+/g, ' ').toLowerCase();
+                        return (text.search(new RegExp(query, "i")) >= 0);
+                });
+
+                $toHide.fadeOut(400, function() {
+                    $toShow.fadeIn(function() {
+                        //console.log($toHide, $toShow, 'show/hide items');
+                        processing = false;
+                        return processing;
+                    });
+                });
+                /*$items.each(function () {
+                    var text = $(this).text().replace(/\s+/g, ' ').toLowerCase();
+                    var shouldHide = (text.search(new RegExp(query, "i")) < 0);
+                    //console.log(query, text, shouldHide, text.indexOf(query), !~text.indexOf(query));
+                    if (shouldHide)
+                        $(this).fadeOut();
+                    else
+                        $(this).fadeIn();
+                    //($.trim($(this).text()).search(new RegExp(query, "i")) < 0) ? $(this).fadeOut() : $(this).fadeIn();                                
+                });*/
+                //console.log($toHide, $toShow, 'show/hide items');
+                //processing = false;
+            } else {
+                $items.show(400, function() {
+                    processing = false;
+                    console.log('show/hide existing items');
+                    return processing;
+                });        
+            }
+             
+
+        //console.log('return', processing);
+        //return processing;        
+       
+    },
+    execute = function(queryVal) {
+        var p = filterList(queryVal);
+        //console.log('from filterList: ' + p );
+        if(!p && typeof(_options.onRender) == 'function')
+            _options.onRender();
+    }, 
+    canQuery = function(query) {
+        return _currQuery != '' && (!processing || query.length > _options.minLength || query.length < _currQuery)
+    };
+
+
+    return {
+        init: function(options, callback) {
+
+            $.extend(_options, options);
+
+            // event handlers
+            $(_options.trigger).on('click', function (e) {
+                e.stopPropagation();
+            });
+
+            $(_options.trigger).on('keyup search', function(e) {
+                var self = $(this),
+                    $items;
+                if (processing || self.val().length <= _options.minLength) {
+                    if (self.val().length == 0) {
+                        if (typeof (_options.itemsDelegate) != 'undefined')
+                            $items =_options.itemsDelegate();
+                        else
+                            $items = $(_options.container).find(_options.items);
+                        
+                        $items.show();
+                        //console.log('keyup show all items if processing or no');
+                    }
+                    return;
+                } else
+                    processing = true;
+
+                //window.setTimeout(function() {
+                    if (e.keyCode == 27 || self.val() == '')
+                        self.val('');
+
+                    //console.log('begin execute');
+
+                    execute(function() {
+                        return self.val();                        
+                    });
+                //}, _options.delay);
+                //console.log('keyup finished');
+            });
+
+            //_callback = callback;
+
+            if (typeof (callback) != 'undefined')
+                callback(_options);
+
+
+            return {
+                Execute: execute
+            }
+        }
+    };
+})(jQuery);

@@ -1,0 +1,79 @@
+﻿var GlobalTimerModule = (function ($) {
+    var moduleName,
+        tickerText = '',
+        tickerUrl = '',
+        closeButtonText = 'close',
+        startTime,
+        endTime,
+        serverTime,
+        timerContainer,
+        cookieHelper,
+        cssClass = '',
+        initTimer = function() {
+
+            if (!cookieHelper.read(moduleName) || cookieHelper.read(moduleName) !== 'hidden') {
+                if ((serverTime.getTime() - startTime.getTime()) > 0 && (endTime.getTime() - serverTime.getTime()) > 0)
+                    showTimer();
+                else if ((serverTime.getTime() - startTime.getTime()) < 0 && (endTime.getTime() - serverTime.getTime()) > 0)
+                    window.setTimeout(showTimer, (startTime.getTime() - serverTime.getTime()));
+            }
+
+        },
+        showTimer = function() {
+
+            var displayTimer = function () {
+                if (typeof (tickerText) == 'undefined' || tickerText == '')
+                    return;
+
+                $(timerContainer).addClass(moduleName).addClass(cssClass);
+                $(timerContainer).find('.closeButton a').text(closeButtonText);
+                $(timerContainer).find('.tickerText').html(tickerText);
+                $(timerContainer).fadeIn('slow');
+                window.setTimeout(hideTimer, (endTime.getTime() - serverTime.getTime()));
+            };
+
+            if (typeof(tickerUrl) != 'undefined' && tickerUrl != '') {
+                $.ajax({
+                    url: tickerUrl,
+                    type: "GET",
+                    dataType: "html",
+                    success: function (response) {
+                        tickerText = response;
+                        displayTimer();
+                    }
+                });
+            } else
+                displayTimer();
+
+        },
+        hideTimer = function() {
+            $(timerContainer).slideUp('slow');
+        };
+
+    return {
+        init: function(options) {
+            moduleName = options.moduleName,
+                tickerText = options.tickerText,
+                closeButtonText = options.closeButtonText,
+                startTime = new Date(options.startTime),
+                endTime = new Date(options.endTime),
+                serverTime = new Date(options.serverTime),
+                timerContainer = options.timerContainer,
+                cssClass = options.cssClass,
+                tickerUrl = options.tickerUrl,
+                cookieHelper = options.cookieHelper;
+
+            initTimer();
+
+            $(timerContainer).find('.closeButton a').on('click', function(e) {
+                e.stopPropagation();
+                hideTimer();
+                cookieHelper.create(moduleName, 'hidden', (endTime.getTime() - serverTime.getTime()));
+                return false;
+            });
+
+            initTimer();
+        }
+    };
+
+}(jQuery));

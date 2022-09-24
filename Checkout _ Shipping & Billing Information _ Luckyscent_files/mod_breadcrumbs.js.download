@@ -1,0 +1,90 @@
+﻿(function ($) {
+
+   
+    $.fn.breadCrumbs = function (options, callback) {
+        var self = this,
+            items = typeof(localStorage["breadcrumbs"]) != 'undefined' && localStorage["breadcrumbs"] != '' ? JSON.parse(localStorage["breadcrumbs"]) : [],
+            settings = $.extend({
+                    name: '',
+                    url: window.location.href,
+                    type: '',
+                    maxItems: 3,
+                    shouldAdd: false,
+                    updateHandler: function() {
+                        return function(_, a) {
+                            update(a);
+                        };
+                    }
+                },
+                options
+            ),
+            render = function(shouldRender) {
+
+                if (shouldRender != true)
+                    return;
+
+                var index = settings.shouldAdd ? 1 : 0;
+
+                var breadcrumbs = [$('<li><a href="' + settings.defaultUrl + '">' + settings.defaultName + '</a></li>')],
+                    filtered = items.length <= settings.maxItems ? items.slice(0, (items.length - index)) : items.slice((items.length - settings.maxItems), (items.length - index));
+
+                $.each(filtered, function(i) {
+                    breadcrumbs.push($('<li><a href="' + filtered[i].url + '">' + filtered[i].name + '</a></li>'));
+                });
+
+                if (settings.shouldAdd == true)
+                    breadcrumbs.push($('<li>' + items[items.length - index].name + '</li>'));
+                else
+                    breadcrumbs.push($('<li>' + settings.name + '</li>'));
+
+                $(self).append(breadcrumbs);
+
+                //console.log(items);
+
+
+            },
+            add = function (shouldAdd) {
+                if (settings.name == settings.defaultName || settings.type == settings.defaultType)
+                    return;
+
+                // filter out items with the same name
+                items = jQuery.grep(items, function (n, i) {
+                    return (n.name != '' && n.name != settings.name);
+                });
+
+                // filter out items with the same page type
+                items = jQuery.grep(items, function (n, i) {
+                    return (n.type != settings.type);
+                });
+
+               if(shouldAdd)
+                    items.push({ name: settings.name, url: settings.url, type: settings.type });
+            },
+            save = function () {
+                localStorage["breadcrumbs"] = JSON.stringify(items);
+            },
+            update = function(url) {
+                items[items.length - 1].url = url;
+                save();
+            }, 
+            destroy = function() {
+                localStorage["breadcrumbs"] = '';
+            };
+
+
+        add(settings.shouldAdd);
+        save();
+        render(settings.render);
+
+
+        if (callback) callback(settings);
+
+        return {
+            Render: render,
+            Update: update,
+            Destroy: destroy
+        };
+
+    };
+
+}(jQuery));
